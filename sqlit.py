@@ -95,13 +95,53 @@ def add_task(conn, task):
 
 
 def select_task_by(conn, table, column, value):
-    # sql = f"SELECT * FROM Zadanie WHERE {column}={value}"
+    """
+    Query rows from table with given value of atribut
+    :param conn: the Connection object
+    :param table: table name
+    :param column: atribute name
+    :param value: atribute value
+    """
     cur = conn.cursor()
     cur.execute(f"SELECT * FROM {table} WHERE {column} = {value}")
     rows = cur.fetchall()
     return rows
 
 
+def select_all(conn, table):
+    """
+    Query all rows in the table
+    :param conn: the Connection object
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM {table}")
+    rows = cur.fetchall()
+
+    return rows
+
+
+def select_where(conn, table, **query):
+    """
+    Query tasks from table with data from **query dict
+    :param conn: the Connection object
+    :param table: table name
+    :param query: dict of attributes and values
+    :return:
+    """
+    cur = conn.cursor()
+    qs = []
+    values = ()
+    for k, v in query.items():
+        qs.append(f"{k}=?")
+        values += (v,)
+    q = " AND ".join(qs)
+    cur.execute(f"SELECT * FROM {table} WHERE {q}", values)
+    rows = cur.fetchall()
+    return rows
+
+
+'''
 def delete_project(conn, id):
     """
     Delete project from projects table
@@ -126,18 +166,57 @@ def delete_task(conn, id):
         conn.commit()
     except Error as e:
         print(e)
+'''
+
+
+def delete_record(conn, table, **kwargs):
+    """DELETE record from table with given parameteres
+    :param conn:
+    :table: table name"""
+    parameters = [f"{k} = ?" for k in kwargs]
+    parameters = ", ".join(parameters)
+    values = tuple(v for v in kwargs.values())
+    sql = f""" DELETE FROM {table} WHERE {parameters} """
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, values)
+        conn.commit()
+        print("RECORDS DELETED")
+    except sqlite3.OperationalError as e:
+        print(e)
 
 
 def drop_table(conn, table):
     """
-    Usuwa całą tabelę
+    Delete table
+    :param table: table name to delete
     """
     try:
-        sql = "DROP TABLE " + table
         cur = conn.cursor()
-        cur.execute(sql)
+        cur.execute(f"DROP TABLE {table}")
         conn.commit()
     except Error as e:
+        print(e)
+
+
+def update_table(conn, table, id, **kwargs):
+    """Update table parameters
+    :param conn:
+    :param table: table name
+    :param id: row id
+    :return:
+    """
+    parameters = [f"{k} = ?" for k in kwargs]
+    parameters = ", ".join(parameters)
+    values = tuple(v for v in kwargs.values())
+    values += (id,)
+    sql = f""" UPDATE {table} SET {parameters} WHERE id = ?"""
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, values)
+        conn.commit()
+        print("TABLE UPDATE OK")
+    except sqlite3.OperationalError as e:
         print(e)
 
 
@@ -145,6 +224,7 @@ if __name__ == "__main__":
     conn = create_connection("projekt.db")
     drop_table(conn, "Zadanie")
     drop_table(conn, "Projekt")
+
     create_project(conn)
     create_task(conn)
     add_project(
@@ -162,7 +242,7 @@ if __name__ == "__main__":
                 1,
                 "Podstawy Pythona cz. 1",
                 "wstęp do pythona",
-                "finished",
+                "Finished",
                 "10.01.2023",
                 "17.01.2023",
             ),
@@ -175,11 +255,20 @@ if __name__ == "__main__":
                 "01.09.1980",
                 "10.06.1990",
             ),
+            (
+                1,
+                "Podstawy Pythona cz. 2",
+                "kolekcje, pętle itp.",
+                "Started",
+                "17.01.2023",
+                "unknown",
+            ),
         ],
     )
-    # delete_task(conn, "2")
-    # delete_project(conn, "2")
-    # drop_table(conn, "Zadanie")
-    # drop_table(conn, "Projekt")
-    print(select_task_by(conn, "Zadanie", "status", "'Finished'"))
+
+    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
+    update_table(conn, "Zadanie", id=5, status="Finished", end_date="25.01.2023")
+    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
+    delete_record(conn, "Zadanie", status="Finished")
+    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
     conn.close()
