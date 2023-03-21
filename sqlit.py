@@ -24,22 +24,22 @@ def create_connection(db_file=":memory:", close=None):
                 conn.close()
 
 
-def create_project(conn):
+def create_writer(conn):
     try:
         cursorObj = conn.cursor()
         cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Projekt(id integer PRIMARY KEY AUTOINCREMENT, nazwa text NOT NULL, start_date text, end_date text)"""
+            """CREATE TABLE IF NOT EXISTS Writers (id integer PRIMARY KEY AUTOINCREMENT, Autor text NOT NULL, narodowość text)"""
         )
         conn.commit()
     except Error as e:
         print(e)
 
 
-def create_task(conn):
+def create_book(conn):
     try:
         cursorObj = conn.cursor()
         cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Zadanie(id integer PRIMARY KEY AUTOINCREMENT, projekt_id integer, nazwa text NOT NULL, opis text, status text, start_date text, end_date text, FOREIGN KEY (projekt_id) REFERENCES Projekt(id))"""
+            """CREATE TABLE IF NOT EXISTS Books (id integer PRIMARY KEY AUTOINCREMENT, Writer_id integer, Tytuł text NOT NULL, cykl text DEFAULT 'Null', gatunek text NOT NULL, status text, ocena integer,  FOREIGN KEY (Writer_id) REFERENCES Writers(id))"""
         )
         conn.commit()
     except Error as e:
@@ -66,35 +66,35 @@ def insert_data_Zadanie(conn, entities):
 """
 
 
-def add_project(conn, project):
+def add_writer(conn, writer):
     """
-    Create a new project into the projects table
+    Create a new Writer into the Writers table
     :param conn:
-    :param project: name, start_date, end_date
+    :param Writers: Autor, narodowość
     :return: project id
     """
-    sql = """INSERT INTO Projekt(nazwa, start_date, end_date) VALUES(?,?,?)"""
+    sql = """INSERT INTO Writers(Autor, narodowość) VALUES(?,?)"""
     cur = conn.cursor()
-    cur.executemany(sql, project)
+    cur.executemany(sql, writer)
     conn.commit()
     return cur.lastrowid
 
 
-def add_task(conn, task):
+def add_book(conn, book):
     """
-    Create a new task into the task table
+    Create a new book into the Books table
     :param conn:
-    :param task: projekt_id (FK), nazwa, opis, status, start_date, end_date
+    :param book: Writers_id (FK), Tytuł, cykl, gatunek, status, ocena
     :return: task id
     """
-    sql = """INSERT INTO Zadanie(projekt_id, nazwa, opis, status, start_date, end_date) VALUES(?, ?, ?, ?, ?, ?)"""
+    sql = """INSERT INTO Books(Writer_id, Tytuł, cykl, gatunek, status, ocena) VALUES(?, ?, ?, ?, ?, ?)"""
     cur = conn.cursor()
-    cur.executemany(sql, task)
+    cur.executemany(sql, book)
     conn.commit()
     return cur.lastrowid
 
 
-def select_task_by(conn, table, column, value):
+def select_book_by(conn, table, column, value):
     """
     Query rows from table with given value of atribut
     :param conn: the Connection object
@@ -174,8 +174,9 @@ def delete_record(conn, table, **kwargs):
     :param conn:
     :table: table name"""
     parameters = [f"{k} = ?" for k in kwargs]
-    parameters = ", ".join(parameters)
+    parameters = " AND ".join(parameters)
     values = tuple(v for v in kwargs.values())
+    values += ()
     sql = f""" DELETE FROM {table} WHERE {parameters} """
     try:
         cur = conn.cursor()
@@ -221,54 +222,51 @@ def update_table(conn, table, id, **kwargs):
 
 
 if __name__ == "__main__":
-    conn = create_connection("projekt.db")
-    drop_table(conn, "Zadanie")
-    drop_table(conn, "Projekt")
+    conn = create_connection("library.db")
+    drop_table(conn, "Books")
+    drop_table(conn, "Writers")
 
-    create_project(conn)
-    create_task(conn)
-    add_project(
+    create_writer(conn)
+    create_book(conn)
+    add_writer(
         conn,
         [
-            ("Kurs Kodilla", "04.01.2023", "24.05.2023"),
-            ("Życie", "15.10.1973", "unknown"),
-        ],
-    )
-    add_task(
-        conn,
-        [
-            (1, "Prework", "Wstęp", "Finished", "04.01.2023", "05.01.2023"),
-            (
-                1,
-                "Podstawy Pythona cz. 1",
-                "wstęp do pythona",
-                "Finished",
-                "10.01.2023",
-                "17.01.2023",
-            ),
-            (2, "Narodziny", "początek", "Finished", "15.10.1973", "15.10.1973"),
-            (
-                2,
-                "Podstawówka",
-                "szkoła podstawowa",
-                "Finished",
-                "01.09.1980",
-                "10.06.1990",
-            ),
-            (
-                1,
-                "Podstawy Pythona cz. 2",
-                "kolekcje, pętle itp.",
-                "Started",
-                "17.01.2023",
-                "unknown",
-            ),
+            ("Terry Pratchett", "Anglik"),
+            ("Frank Herbert", "Amerykanin"),
+            ("Glen Cook", "Amerykanin"),
+            ("Stanisław Lem", "Polak"),
+            ("Richard Feynman", "Amerykanin"),
+            ("Neil Gaiman", "Anglik"),
         ],
     )
 
-    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
-    update_table(conn, "Zadanie", id=5, status="Finished", end_date="25.01.2023")
-    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
-    delete_record(conn, "Zadanie", status="Finished")
-    print(select_where(conn, "Zadanie", projekt_id=1, status="Finished"))
+    add_book(
+        conn,
+        [
+            (1, "Kolor magii", "Świat Dysku", "fantasy", "przeczytana", 10),
+            (1, "Kosiarz", "Świat Dysku", "fantasy", "przeczytana", 10),
+            (2, "Diuna", "Diuna", "S-F", "przeczytana", 10),
+            (2, "Mesjasz Diuny", "Diuna", "S-F", "przeczytana", 9),
+            (3, "Tyrania nocy", "Czarna Kompania", "fantasy", "nie przeczytana", None),
+            (4, "Bajki robotów", None, "S-F", "przeczytana", 6),
+            (5, "Wykłady z fizyki t.1", "Wykłady z fizyki", "fizyka", "przeczytana", 9),
+            (
+                5,
+                "Wykłady z fizyki t.2",
+                "Wykłady z fizyki",
+                "fizyka",
+                "nie przeczytana",
+                None,
+            ),
+            (6, "Dobry omen", None, "S-F", "przeczytana", 10),
+        ],
+    )
+
+    print(select_where(conn, "Books", Writer_id=1, status="przeczytana"))
+    update_table(conn, "Books", id=5, status="przeczytana", ocena=10)
+    print(select_where(conn, "Books", Writer_id=1, status="przeczytana"))
+    delete_record(conn, "Books", status="nie przeczytana", ocena="6")
+    print(select_where(conn, "Books", Writer_id=5, status="przeczytana"))
+    print(select_where(conn, "Books", Writer_id=6))
+    # print(select_all(conn, "Writers"))
     conn.close()
