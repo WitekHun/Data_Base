@@ -28,7 +28,7 @@ def create_writer(conn):
     try:
         cursorObj = conn.cursor()
         cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Writers (id integer PRIMARY KEY AUTOINCREMENT, Autor text NOT NULL, narodowość text)"""
+            """CREATE TABLE IF NOT EXISTS Writers (id integer PRIMARY KEY AUTOINCREMENT, Autor_imię text, Autor_nazwisko ext NOT NULL, narodowość text)"""
         )
         conn.commit()
     except Error as e:
@@ -60,34 +60,16 @@ def create_writers_books(conn):
         print(e)
 
 
-"""
-def insert_data_Projekt(conn, entities):
-    cursorObj = conn.cursor()
-    cursorObj.execute(
-        "INSERT INTO Projekt(id, nazwa, start_date, end_date) VALUES(?, ?, ?, ?)",
-        entities,
-    )
-    conn.commit()
-
-
-def insert_data_Zadanie(conn, entities):
-    cursorObj = conn.cursor()
-    cursorObj.execute(
-        "INSERT INTO Zadanie(id, projekt_id, nazwa, opis, status, start_date date, end_date date) VALUES(?, ?, ?, ?, ?, ?, ?)",
-        entities,
-    )
-    conn.commit()
-"""
-
-
 def add_writer(conn, writer):
     """
-    Create a new Writer into the Writers table
+    Add a new Writer into the Writers table
     :param conn:
-    :param Writers: Autor, narodowość
+    :param Writers: Autor_imię, Autor_nazwisko, narodowość
     :return: Writers id
     """
-    sql = """INSERT INTO Writers(Autor, narodowość) VALUES(?,?)"""
+    sql = (
+        """INSERT INTO Writers(Autor_imię, Autor_nazwisko, narodowość) VALUES(?,?,?)"""
+    )
     cur = conn.cursor()
     cur.executemany(sql, writer)
     conn.commit()
@@ -96,7 +78,7 @@ def add_writer(conn, writer):
 
 def add_book(conn, book):
     """
-    Create a new book into the Books table
+    Add a new book into the Books table
     :param conn:
     :param book: Tytuł, cykl, gatunek, status, ocena
     :return: Books id
@@ -169,45 +151,43 @@ def select_where(conn, table, **query):
     return rows
 
 
-def find_writer_books(conn, writer):
+def find_id(conn, idx, find_books=True):
     """
-    Finds Books_id of Writer
+    Finds Book_id or Writer_id (default Book_id)
     :param conn:
-    :param writer: Writers_id from Writers table
-    :return: Books_id
+    :param idx: Writer_id or Book_id
+    :param find_books: input 0 for Books_id -> returns Writer_id
+    :return: Book_id or Writer_id
     """
     cur = conn.cursor()
-    cur.execute(f"SELECT Book_id FROM Writers_Books WHERE Writer_id={writer}")
-    rows = cur.fetchall()
+    if find_books == True:
+        cur.execute(f"SELECT Book_id FROM Writers_Books WHERE Writer_id={idx}")
+        rows = cur.fetchall()
+    else:
+        cur.execute(f"SELECT Writer_id FROM Writers_Books WHERE Book_id={idx}")
+        rows = cur.fetchall()
     return rows
 
 
-'''
-def delete_project(conn, id):
+def select_linked(conn, idx, find_books=True):
     """
-    Delete project from projects table
+    Select books or Writers (default books) od given id
+     :param conn:
+     :param id: Writer_id or Book_id
+     :param find_books: input 0 for Book_id -> returns Writers
     """
-    try:
-        sql = "DELETE FROM Projekt WHERE id=?"
-        cur = conn.cursor()
-        cur.execute(sql, id)
-        conn.commit()
-    except Error as e:
-        print(e)
-
-
-def delete_task(conn, id):
-    """
-    Delete task from tasks table
-    """
-    try:
-        sql = "DELETE FROM Zadanie WHERE id=?"
-        cur = conn.cursor()
-        cur.execute(sql, id)
-        conn.commit()
-    except Error as e:
-        print(e)
-'''
+    x = find_id(conn, idx, find_books)
+    line = []
+    for i in range(len(x)):
+        if find_books == True:
+            y = x[i]
+            book = select_book_by(conn, "Books", "id", y[0])
+            line.append(book)
+        else:
+            y = x[i]
+            writer = select_book_by(conn, "Writers", "id", y[0])
+            line.append(writer)
+    return line
 
 
 def delete_record(conn, table, **kwargs):
@@ -274,12 +254,14 @@ if __name__ == "__main__":
     add_writer(
         conn,
         [
-            ("Terry Pratchett", "Anglik"),
-            ("Frank Herbert", "Amerykanin"),
-            ("Glen Cook", "Amerykanin"),
-            ("Stanisław Lem", "Polak"),
-            ("Richard Feynman", "Amerykanin"),
-            ("Neil Gaiman", "Anglik"),
+            ("Terry", "Pratchett", "Anglik"),
+            ("Frank", "Herbert", "Amerykanin"),
+            ("Glen", "Cook", "Amerykanin"),
+            ("Stanisław", "Lem", "Polak"),
+            ("Richard", "Feynman", "Amerykanin"),
+            ("Neil", "Gaiman", "Anglik"),
+            ("Stephen", "Hawkings", "Anglik"),
+            ("Leonard", "Mlodinow", "Amerykanin"),
         ],
     )
 
@@ -301,6 +283,13 @@ if __name__ == "__main__":
                 None,
             ),
             ("Dobry omen", None, "S-F", "przeczytana", 10),
+            (
+                "Jeszcze krótsza historia czasu",
+                None,
+                "popularnonaukowa",
+                "nie przeczytana",
+                None,
+            ),
         ],
     )
 
@@ -317,17 +306,23 @@ if __name__ == "__main__":
             (5, 7),
             (5, 8),
             (6, 9),
+            (7, 10),
+            (8, 10),
         ),
     )
 
-    print(select_where(conn, "Writers_Books", Writer_id=1))
     """
+    print(select_all(conn, "Books"))
+    print(select_where(conn, "Writers_Books", Writer_id=1))
     update_table(conn, "Books", id=5, status="przeczytana", ocena=10)
     print(select_where(conn, "Books", Writer_id=1, status="przeczytana"))
-    # delete_record(conn, "Books", status="nie przeczytana", ocena="6")
+    delete_record(conn, "Books", status="nie przeczytana", ocena="6")
     print(select_where(conn, "Books", Writer_id=5, status="przeczytana"))
     print(select_where(conn, "Books", Writer_id=6))
     """
-    # print(select_all(conn, "Writers"))
-    print(find_writer_books(conn, 1))
+    update_table(conn, "Books", id=10, status="przeczytana", ocena=8)
+    print(select_all(conn, "Books"))
+    # print(find_id(conn, 9, 0))
+    print(select_linked(conn, 1))
+    print(select_linked(conn, 9, 0))
     conn.close()
