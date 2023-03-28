@@ -2,110 +2,102 @@ import sqlite3
 from sqlite3 import Error
 
 
-def create_connection(db_file=":memory:", close=None):
+def create_connection(db_file=":memory:", close=0):
     """create a database connection to a SQLite database"""
     conn = None
-    if close == None:
-        try:
-            conn = sqlite3.connect(db_file)
-            print(f"Connected to {db_file}, sqlite version: {sqlite3.sqlite_version}")
-            return conn
-        except Error as e:
-            print(e)
-    else:
-        try:
-            conn = sqlite3.connect(db_file)
-            print(f"Connected to {db_file}, sqlite version: {sqlite3.sqlite_version}")
-            return conn
-        except Error as e:
-            print(e)
-        finally:
-            if conn:
-                conn.close()
+    try:
+        conn = sqlite3.connect(db_file)
+        print(f"Connected to {db_file}, sqlite version: {sqlite3.sqlite_version}")
+        if close != 0:
+            conn.close()
+        return conn
+    except Error as e:
+        print(e)
+
+
+def execute_sql(conn, sql):
+    """Execute sql
+    :param conn: Connection object
+    :param sql: a SQL script
+    :return:
+    """
+    try:
+        c = conn.cursor()
+        c.execute(sql)
+    except Error as e:
+        print(e)
 
 
 def create_writer(conn):
-    try:
-        cursorObj = conn.cursor()
-        cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Writers (id integer PRIMARY KEY AUTOINCREMENT, Autor_imię text, Autor_nazwisko ext NOT NULL, narodowość text)"""
-        )
-        conn.commit()
-    except Error as e:
-        print(e)
+    sql = """CREATE TABLE IF NOT EXISTS writers (id integer PRIMARY KEY AUTOINCREMENT, Autor_imię text, Autor_nazwisko text NOT NULL, narodowość text)"""
+    execute_sql(conn, sql)
+    conn.commit()
 
 
 def create_book(conn):
-    try:
-        cursorObj = conn.cursor()
-        cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Books (id integer PRIMARY KEY AUTOINCREMENT, Tytuł text NOT NULL, cykl text DEFAULT 'Null', gatunek text NOT NULL, status text, ocena integer)"""
-        )
-        conn.commit()
-    except Error as e:
-        print(e)
+    sql = """CREATE TABLE IF NOT EXISTS books (id integer PRIMARY KEY AUTOINCREMENT, Tytuł text NOT NULL, cykl text DEFAULT '', gatunek text NOT NULL, status text, ocena integer)"""
+    execute_sql(conn, sql)
+    conn.commit()
 
 
 def create_writers_books(conn):
     """
-    Create join table between Writers and Books
+    Create join table between writers and books
     """
-    try:
-        cursorObj = conn.cursor()
-        cursorObj.execute(
-            """CREATE TABLE IF NOT EXISTS Writers_Books (id integer PRIMARY KEY AUTOINCREMENT, Writer_id integer, Book_id integer, FOREIGN KEY (Writer_id) REFERENCES Writers(id), FOREIGN KEY (Book_id) REFERENCES Books(id))"""
-        )
-        conn.commit()
-    except Error as e:
-        print(e)
+    sql = """CREATE TABLE IF NOT EXISTS writers_books (id integer PRIMARY KEY AUTOINCREMENT, writer_id integer, book_id integer, FOREIGN KEY (writer_id) REFERENCES writers(id), FOREIGN KEY (book_id) REFERENCES books(id))"""
+    execute_sql(conn, sql)
+    conn.commit()
 
 
 def add_writer(conn, writer):
     """
-    Add a new Writer into the Writers table
+    Add a new writer into the writers table
     :param conn:
-    :param Writers: Autor_imię, Autor_nazwisko, narodowość
-    :return: Writers id
+    :param writers: Autor_imię, Autor_nazwisko, narodowość
+    :return: writers id
     """
-    sql = (
-        """INSERT INTO Writers(Autor_imię, Autor_nazwisko, narodowość) VALUES(?,?,?)"""
-    )
-    cur = conn.cursor()
-    cur.executemany(sql, writer)
-    conn.commit()
-    return cur.lastrowid
+    for data in writer:
+        sql = (
+            f"INSERT INTO writers(Autor_imię, Autor_nazwisko, narodowość) VALUES{data}"
+        )
+        execute_sql(conn, sql)
+        c = conn.cursor()
+        conn.commit()
+    return c.lastrowid
 
 
 def add_book(conn, book):
     """
-    Add a new book into the Books table
+    Add a new book into the books table
     :param conn:
     :param book: Tytuł, cykl, gatunek, status, ocena
-    :return: Books id
+    :return: books id
     """
-    sql = """INSERT INTO Books(Tytuł, cykl, gatunek, status, ocena) VALUES( ?, ?, ?, ?, ?)"""
-    cur = conn.cursor()
-    cur.executemany(sql, book)
-    conn.commit()
-    return cur.lastrowid
+    for data in book:
+        sql = f"INSERT INTO books(Tytuł, cykl, gatunek, status, ocena) VALUES{data}"
+        execute_sql(conn, sql)
+        c = conn.cursor()
+        conn.commit()
+    return c.lastrowid
 
 
 def join_writer_book(conn, writer_book):
     """
-    Join Writers and Books
+    Join writers and books
     :param conn:
-    :param writer: Writer_id
-    :param book: Books_id
-    :return: Writers_Books id
+    :param writer: writer_id
+    :param book: books_id
+    :return: writers_books id
     """
-    sql = """INSERT INTO Writers_Books(Writer_id, Book_id) VALUES( ?, ?)"""
-    cur = conn.cursor()
-    cur.executemany(sql, writer_book)
-    conn.commit()
+    for data in writer_book:
+        sql = f"INSERT INTO writers_books(writer_id, book_id) VALUES{data}"
+        cur = conn.cursor()
+        execute_sql(conn, sql)
+        conn.commit()
     return cur.lastrowid
 
 
-def select_book_by(conn, table, column, value):
+def select_by(conn, table, column, value):
     """
     Query rows from table with given value of atribut
     :param conn: the Connection object
@@ -153,39 +145,41 @@ def select_where(conn, table, **query):
 
 def find_id(conn, idx, find_books=True):
     """
-    Finds Book_id or Writer_id (default Book_id)
+    Finds book_id or writer_id (default book_id)
     :param conn:
-    :param idx: Writer_id or Book_id
-    :param find_books: input 0 for Books_id -> returns Writer_id
-    :return: Book_id or Writer_id
+    :param idx: writer_id or book_id
+    :param find_books: input False for books_id -> returns writer_id
+    :return: book_id or writer_id
     """
     cur = conn.cursor()
-    if find_books == True:
-        cur.execute(f"SELECT Book_id FROM Writers_Books WHERE Writer_id={idx}")
-        rows = cur.fetchall()
+    if find_books:
+        field = "book_id"
+        field_id = "writer_id"
     else:
-        cur.execute(f"SELECT Writer_id FROM Writers_Books WHERE Book_id={idx}")
-        rows = cur.fetchall()
+        field = "writer_id"
+        field_id = "book_id"
+    cur.execute(f"SELECT {field} FROM writers_books WHERE {field_id}={idx}")
+    rows = cur.fetchall()
     return rows
 
 
 def select_linked(conn, idx, find_books=True):
     """
-    Select books or Writers (default books) od given id
+    Select books or writers (default books) od given id
      :param conn:
-     :param id: Writer_id or Book_id
-     :param find_books: input 0 for Book_id -> returns Writers
+     :param id: writer_id or book_id
+     :param find_books: input 0 for book_id -> returns writers
     """
     x = find_id(conn, idx, find_books)
     line = []
     for i in range(len(x)):
-        if find_books == True:
+        if find_books:
             y = x[i]
-            book = select_book_by(conn, "Books", "id", y[0])
+            book = select_by(conn, "books", "id", y[0])
             line.append(book)
         else:
             y = x[i]
-            writer = select_book_by(conn, "Writers", "id", y[0])
+            writer = select_by(conn, "writers", "id", y[0])
             line.append(writer)
     return line
 
@@ -198,7 +192,7 @@ def delete_record(conn, table, **kwargs):
     parameters = " AND ".join(parameters)
     values = tuple(v for v in kwargs.values())
     values += ()
-    sql = f""" DELETE FROM {table} WHERE {parameters} """
+    sql = f"DELETE FROM {table} WHERE {parameters}"
     try:
         cur = conn.cursor()
         cur.execute(sql, values)
@@ -244,9 +238,9 @@ def update_table(conn, table, id, **kwargs):
 
 if __name__ == "__main__":
     conn = create_connection("library_2.db")
-    drop_table(conn, "Books")
-    drop_table(conn, "Writers")
-    drop_table(conn, "Writers_Books")
+    drop_table(conn, "books")
+    drop_table(conn, "writers")
+    drop_table(conn, "writers_books")
 
     create_writer(conn)
     create_book(conn)
@@ -272,23 +266,23 @@ if __name__ == "__main__":
             ("Kosiarz", "Świat Dysku", "fantasy", "przeczytana", 10),
             ("Diuna", "Diuna", "S-F", "przeczytana", 10),
             ("Mesjasz Diuny", "Diuna", "S-F", "przeczytana", 9),
-            ("Tyrania nocy", "Czarna Kompania", "fantasy", "nie przeczytana", None),
-            ("Bajki robotów", None, "S-F", "przeczytana", 6),
+            ("Tyrania nocy", "Czarna Kompania", "fantasy", "nie przeczytana", ""),
+            ("Bajki robotów", "", "S-F", "przeczytana", 6),
             ("Wykłady z fizyki t.1", "Wykłady z fizyki", "fizyka", "przeczytana", 9),
             (
                 "Wykłady z fizyki t.2",
                 "Wykłady z fizyki",
                 "fizyka",
                 "nie przeczytana",
-                None,
+                "",
             ),
-            ("Dobry omen", None, "S-F", "przeczytana", 10),
+            ("Dobry omen", "", "S-F", "przeczytana", 10),
             (
                 "Jeszcze krótsza historia czasu",
-                None,
+                "",
                 "popularnonaukowa",
                 "nie przeczytana",
-                None,
+                "",
             ),
         ],
     )
@@ -312,17 +306,19 @@ if __name__ == "__main__":
     )
 
     """
-    print(select_all(conn, "Books"))
-    print(select_where(conn, "Writers_Books", Writer_id=1))
-    update_table(conn, "Books", id=5, status="przeczytana", ocena=10)
-    print(select_where(conn, "Books", Writer_id=1, status="przeczytana"))
-    delete_record(conn, "Books", status="nie przeczytana", ocena="6")
-    print(select_where(conn, "Books", Writer_id=5, status="przeczytana"))
-    print(select_where(conn, "Books", Writer_id=6))
+    print(select_all(conn, "books"))
+    print(select_where(conn, "writers_books", writer_id=1))
+    update_table(conn, "books", id=5, status="przeczytana", ocena=10)
+    print(select_where(conn, "books", writer_id=1, status="przeczytana"))
+    delete_record(conn, "books", status="nie przeczytana", ocena="6")
+    print(select_where(conn, "books", writer_id=5, status="przeczytana"))
+    print(select_where(conn, "books", writer_id=6))
     """
-    update_table(conn, "Books", id=10, status="przeczytana", ocena=8)
-    print(select_all(conn, "Books"))
-    # print(find_id(conn, 9, 0))
+    update_table(conn, "books", id=10, status="przeczytana", ocena=8)
+    # print(select_all(conn, "books"))
+    # print(find_id(conn, 1, False))
+    # print(select_linked(conn, 1))
+    print(select_linked(conn, 9, False))
     print(select_linked(conn, 1))
-    print(select_linked(conn, 9, 0))
+    # delete_record(conn, "books", status="przeczytana", gatunek="fizyka")
     conn.close()
