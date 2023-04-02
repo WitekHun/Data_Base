@@ -24,6 +24,7 @@ def execute_sql(conn, sql):
     try:
         c = conn.cursor()
         c.execute(sql)
+        conn.commit()
     except Error as e:
         print(e)
 
@@ -31,13 +32,11 @@ def execute_sql(conn, sql):
 def create_writer(conn):
     sql = """CREATE TABLE IF NOT EXISTS writers (id integer PRIMARY KEY AUTOINCREMENT, Autor_imię text, Autor_nazwisko text NOT NULL, narodowość text)"""
     execute_sql(conn, sql)
-    conn.commit()
 
 
 def create_book(conn):
     sql = """CREATE TABLE IF NOT EXISTS books (id integer PRIMARY KEY AUTOINCREMENT, Tytuł text NOT NULL, cykl text DEFAULT '', gatunek text NOT NULL, status text, ocena integer)"""
     execute_sql(conn, sql)
-    conn.commit()
 
 
 def create_writers_books(conn):
@@ -46,7 +45,6 @@ def create_writers_books(conn):
     """
     sql = """CREATE TABLE IF NOT EXISTS writers_books (id integer PRIMARY KEY AUTOINCREMENT, writer_id integer, book_id integer, FOREIGN KEY (writer_id) REFERENCES writers(id), FOREIGN KEY (book_id) REFERENCES books(id))"""
     execute_sql(conn, sql)
-    conn.commit()
 
 
 def add_writer(conn, writer):
@@ -54,16 +52,13 @@ def add_writer(conn, writer):
     Add a new writer into the writers table
     :param conn:
     :param writers: Autor_imię, Autor_nazwisko, narodowość
-    :return: writers id
+    :return:
     """
     for data in writer:
         sql = (
             f"INSERT INTO writers(Autor_imię, Autor_nazwisko, narodowość) VALUES{data}"
         )
         execute_sql(conn, sql)
-        c = conn.cursor()
-        conn.commit()
-    return c.lastrowid
 
 
 def add_book(conn, book):
@@ -77,8 +72,25 @@ def add_book(conn, book):
         sql = f"INSERT INTO books(Tytuł, cykl, gatunek, status, ocena) VALUES{data}"
         execute_sql(conn, sql)
         c = conn.cursor()
-        conn.commit()
-    return c.lastrowid
+
+
+def add_one_book(conn, book, author=0):
+    """
+    Add a new book into the books table
+    :param conn:
+    :param book: Tytuł, cykl, gatunek, status, ocena
+    :param author: if given adds book to writers_books table with given writer_id
+    :return:
+    """
+    sql = f"INSERT INTO books(Tytuł, cykl, gatunek,status, ocena) VALUES{book}"
+    cur = conn.cursor()
+    cur.execute(sql)
+    conn.commit()
+    if author != 0:
+        sql = f"INSERT INTO writers_books(writer_id, book_id) VALUES{author, cur.lastrowid}"
+        execute_sql(conn, sql)
+    else:
+        print("No Author given")
 
 
 def join_writer_book(conn, writer_book):
@@ -93,22 +105,7 @@ def join_writer_book(conn, writer_book):
         sql = f"INSERT INTO writers_books(writer_id, book_id) VALUES{data}"
         cur = conn.cursor()
         execute_sql(conn, sql)
-        conn.commit()
     return cur.lastrowid
-
-
-def select_by(conn, table, column, value):
-    """
-    Query rows from table with given value of atribut
-    :param conn: the Connection object
-    :param table: table name
-    :param column: atribute name
-    :param value: atribute value
-    """
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM {table} WHERE {column} = {value}")
-    rows = cur.fetchall()
-    return rows
 
 
 def select_all(conn, table):
@@ -165,21 +162,21 @@ def find_id(conn, idx, find_books=True):
 
 def select_linked(conn, idx, find_books=True):
     """
-    Select books or writers (default books) od given id
+    Select books or writers (default books) of given id
      :param conn:
      :param id: writer_id or book_id
-     :param find_books: input 0 for book_id -> returns writers
+     :param find_books: input False for book_id -> returns writers
     """
     x = find_id(conn, idx, find_books)
     line = []
     for i in range(len(x)):
         if find_books:
             y = x[i]
-            book = select_by(conn, "books", "id", y[0])
+            book = select_where(conn, "books", id=y[0])
             line.append(book)
         else:
             y = x[i]
-            writer = select_by(conn, "writers", "id", y[0])
+            writer = select_where(conn, "writers", id=y[0])
             line.append(writer)
     return line
 
@@ -207,12 +204,8 @@ def drop_table(conn, table):
     Delete table
     :param table: table name to delete
     """
-    try:
-        cur = conn.cursor()
-        cur.execute(f"DROP TABLE {table}")
-        conn.commit()
-    except Error as e:
-        print(e)
+    sql = f"DROP TABLE {table}"
+    execute_sql(conn, sql)
 
 
 def update_table(conn, table, id, **kwargs):
@@ -305,6 +298,10 @@ if __name__ == "__main__":
         ),
     )
 
+    add_one_book(
+        conn, ("Blask fantastyczny", "Świat Dysku", "fantasy", "przeczytana", 10), 1
+    )
+
     """
     print(select_all(conn, "books"))
     print(select_where(conn, "writers_books", writer_id=1))
@@ -318,7 +315,9 @@ if __name__ == "__main__":
     # print(select_all(conn, "books"))
     # print(find_id(conn, 1, False))
     # print(select_linked(conn, 1))
-    print(select_linked(conn, 9, False))
-    print(select_linked(conn, 1))
+    print(*select_linked(conn, 9, False), sep="\n")
+    print(*select_where(conn, "books", status="przeczytana"), sep="\n")
     # delete_record(conn, "books", status="przeczytana", gatunek="fizyka")
+    print(*select_linked(conn, 1), sep="\n")
+    # print(*select_all(conn, "writers_books"), sep="\n")
     conn.close()
